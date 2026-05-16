@@ -53,7 +53,7 @@ prompt_map = {
 }
 
 # 输入API密钥
-api_key = st.text_input("🔑 填写火山方舟API Key(ak开头)", type="password")
+api_key = st.text_input("ark-4aaa9335-e5ba-4f88-ae37-b0a0ca396ca1-9cee4)", type="password")
 client = None
 if api_key:
     client = OpenAI(api_key=api_key, base_url="https://ark.cn-beijing.volces.com/api/v3")
@@ -76,7 +76,7 @@ if st.button("🚀 一键AI生成", type="primary"):
         with st.spinner("正在快速生成内容，请稍等..."):
             full_prompt = prompt_map[now_num] + "\n用户内容：\n" + user_text
             res = client.chat.completions.create(
-                model="doubao-pro-256k",
+                model="api-key-20260516144217",
                 messages=[{"role":"user","content":full_prompt}]
             )
             result_data = res.choices[0].message.content
@@ -108,3 +108,4 @@ if "ai_result" in st.session_state:
         file_name="AI办公结果.docx",
         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     )
+    
