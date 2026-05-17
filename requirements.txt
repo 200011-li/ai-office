@@ -1,2 +1,2 @@
-openai
-gradio
+streamlit
+openai>=1.0.0
