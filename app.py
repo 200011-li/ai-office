@@ -76,12 +76,14 @@ if st.button("🚀 一键AI生成", type="primary"):
         with st.spinner("正在快速生成内容，请稍等..."):
             full_prompt = prompt_map[now_num] + "\n用户内容：\n" + user_text
             res = client.chat.completions.create(
-                model="api-key-20260516144217",
+                model="Doubao-pro-4k",
                 messages=[{"role":"user","content":full_prompt}]
             )
             result_data = res.choices[0].message.content
             st.session_state["ai_result"] = result_data
-
+except Exception as e:
+                # 修正2：捕获所有API调用异常，给出友好提示
+                st.error(f"生成失败：{str(e)}")
 # 展示结果+下载
 if "ai_result" in st.session_state:
     st.divider()
