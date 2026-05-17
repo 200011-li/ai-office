@@ -1,16 +1,15 @@
 from openai import OpenAI
 import gradio as gr
 
-# ===================== 配置区 =====================
+# ===================== 【必须填写】你的API配置 =====================
 API_KEY = "ark-4aaa9335-e5ba-4f88-ae37-b0a0ca396ca1-9cee4"
 BASE_URL = "https://ark.cn-beijing.volces.com/api/v3"
-# 注意：这里改成你火山引擎控制台里实际的模型ID，比如 doubao-pro-4k 或 ark-xxx
-MODEL_NAME = "doubao-seed-2-0-lite-260428"
-# ==================================================
+MODEL_NAME = "doubao-pro-4k"
+# ===================================================================
 
 client = OpenAI(api_key=API_KEY, base_url=BASE_URL)
 
-# 12个功能
+# 12个职场功能提示词
 FUNCTION_PROMPT = {
     "1.职场日报/周报/月报自动生成":
         "你是资深职场文员，根据用户提供工作内容，自动生成标准规范日报、周报、月报，分工作完成、现存问题、后续工作计划，排版工整适合直接上交",
@@ -38,7 +37,7 @@ FUNCTION_PROMPT = {
         "根据用户需求撰写公众号优质原创推文，逻辑流畅、段落分明、标题吸睛、排版舒服，符合大众阅读习惯，自带传播感"
 }
 
-# 核心生成函数（带错误捕获）
+# 核心生成函数
 def run_office_tool(select_func, user_input):
     if not user_input or len(user_input.strip()) == 0:
         return "⚠️ 请填写对应的内容、素材、需求后再生成！"
@@ -52,40 +51,39 @@ def run_office_tool(select_func, user_input):
                 {"role": "user", "content": user_input}
             ],
             temperature=0.6,
-            max_tokens=2000
+            max_tokens=2500
         )
         return res.choices[0].message.content
     except Exception as e:
-        return f"❌ 调用失败！错误信息：{str(e)}"
+        return f"❌ 生成失败：{str(e)}"
 
-# 界面
-with gr.Blocks(title="全能办公AI工具") as web_app:
+# 网页界面
+with gr.Blocks(title="全能办公AI工具箱") as web_app:
     gr.Markdown("""
-    # 🧰 12合一全能办公AI工具箱
-    手机流量可用 | 无需同WiFi | 一键生成
+    # 🧰 12合一全能办公AI工具
+    手机/电脑通用 | 无需同一WiFi | 永久在线
     """)
 
     func_choice = gr.Dropdown(
-        label="选择功能",
+        label="请选择所需办公功能",
         choices=list(FUNCTION_PROMPT.keys()),
         value="1.职场日报/周报/月报自动生成"
     )
 
     user_input_box = gr.Textbox(
-        label="输入内容",
+        label="输入素材/内容/需求",
         lines=8,
-        placeholder="粘贴文字、需求、工作内容等"
+        placeholder="粘贴文字、会议录音、工作内容、产品信息、文档内容等"
     )
 
     result_show = gr.Textbox(
-        label="生成结果",
+        label="AI智能生成结果",
         lines=15
     )
 
-    submit_btn = gr.Button("🚀 一键生成", variant="primary")
-    submit_btn.click(run_office_tool, inputs=[func_choice, user_input_box], outputs=result_show)
+    submit_btn = gr.Button("🚀 一键智能生成", variant="primary")
+    submit_btn.click(fn=run_office_tool, inputs=[func_choice, user_input_box], outputs=result_show)
 
-# 启动
+# Hugging Face专用启动方式
 if __name__ == "__main__":
-    web_app.queue()
-    web_app.launch(server_name="0.0.0.0", server_port=7860, share=True, inbrowser=True)
+    web_app.launch()
