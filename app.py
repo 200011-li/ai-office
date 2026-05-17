@@ -1,4 +1,4 @@
-penai import OpenAI
+from openai import OpenAI
 import gradio as gr
 
 # ===================== 配置区 =====================
