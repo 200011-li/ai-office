@@ -81,9 +81,7 @@ if st.button("🚀 一键AI生成", type="primary"):
             )
             result_data = res.choices[0].message.content
             st.session_state["ai_result"] = result_data
-except Exception as e:
-                # 修正2：捕获所有API调用异常，给出友好提示
-                st.error(f"生成失败：{str(e)}")
+
 # 展示结果+下载
 if "ai_result" in st.session_state:
     st.divider()
