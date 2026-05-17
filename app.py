@@ -1,111 +1,91 @@
-import streamlit as st
-from openai import OpenAI
-from docx import Document
-import io
+penai import OpenAI
+import gradio as gr
 
-# 页面基础配置
-st.set_page_config(
-    page_title="职场AI办公助手",
-    layout="wide",
-    initial_sidebar_state="collapsed"
-)
-st.title("💼 职场AI办公助手")
-st.divider()
+# ===================== 配置区 =====================
+API_KEY = "ark-4aaa9335-e5ba-4f88-ae37-b0a0ca396ca1-9cee4"
+BASE_URL = "https://ark.cn-beijing.volces.com/api/v3"
+# 注意：这里改成你火山引擎控制台里实际的模型ID，比如 doubao-pro-4k 或 ark-xxx
+MODEL_NAME = "doubao-seed-2-0-lite-260428"
+# ==================================================
 
-# 功能列表
-func_list = [
-    "1. 职场日报/周报/月报自动生成",
-    "2. 岗位JD拆解+面试题生成",
-    "3. 商务正式邮件自动撰写",
-    "4. 会议录音→结构化纪要",
-    "5. 杂乱Excel数据清洗整理",
-    "6. PDF文档提炼核心要点",
-    "7. 小红书/短视频文案生成",
-    "8. 批量数据分析+透视表",
-    "9. 文档一键转PPT",
-    "10. 表格数据分析+结论",
-    "11. 专业视频脚本撰写",
-    "12. 公众号爆款文章生成"
-]
+client = OpenAI(api_key=API_KEY, base_url=BASE_URL)
 
-# 提示词库
-prompt_map = {
-    1: "请根据我提供的内容，按需求类型（日报/周报/月报），生成一篇专业、简洁、正式的职场报告，尽量口语化，分点描述，突出工作成果与进度。",
-    2: "请拆解这个岗位JD，输出：核心要求、胜任力、高频面试题（含回答思路以及具体回答示例）。",
-    3: "请根据我提供的对象以及场景帮我写一封正式、得体、专业的商务邮件。",
-    4: "请把这段会议录音转文字，整理成结构化、精简、重点清晰的会议纪要。",
-    5: "请帮我清洗整理Excel数据，去重、补全、规范格式。",
-    6: "请帮我提炼这份PDF的核心要点，分点输出。",
-    7: "请根据我提供的主题生成一篇爆款小红书/短视频文案，吸引人、有网感、易传播，突出风格。",
-    8: "请帮我分析这批数据，生成数据透视表思路与可视化建议。",
-    9: "请把这段文档内容转换成PPT大纲（适合直接复制到PPT）。",
-    10: "请分析表格数据，输出结论、洞察、建议。",
-    11: "请生成一个完整的短视频脚本范例：镜头、台词、画面、时长。",
-    12: """你是资深公众号主编，擅长写1500字左右爆款文章，风格多变。
-请按用户要求生成：
-- 吸引人标题
-- 开头痛点/故事引入
-- 3-5个核心小标题模块
-- 每段简短、手机友好
-- 结尾引导关注/互动
-- 风格：专业/亲切/干货/网感（按用户内容调整）
-全文结构完整、无AI腔、可直接发布。"""
+# 12个功能
+FUNCTION_PROMPT = {
+    "1.职场日报/周报/月报自动生成":
+        "你是资深职场文员，根据用户提供工作内容，自动生成标准规范日报、周报、月报，分工作完成、现存问题、后续工作计划，排版工整适合直接上交",
+    "2.企业内部通知公告撰写":
+        "专业行政文案，撰写正规企业内部通知、公告、放假通知、人事通知、活动通知，格式标准、语言正式简洁、要素齐全",
+    "3.商务正式邮件自动撰写":
+        "精通职场商务邮件，撰写对外对接、合作、回访、请假、汇报类正式邮件，格式标准、语气得体专业，可直接复制发送",
+    "4.会议录音文字转结构化纪要":
+        "用户粘贴会议口语化录音文字，帮其梳理提炼成标准结构化会议纪要，区分参会人、会议主题、讨论内容、内容重点、达成决议、待办事项、责任人与时间",
+    "5.杂乱Excel数据清洗":
+        "用户给出Excel表格，帮忙筛查问题并给出完整的处理结果版本",
+    "6.PDF长文档提炼核心要点":
+        "用户粘贴PDF全文/段落内容，快速精简提炼全文核心主旨、重点信息、关键结论、核心数据，去除冗余内容",
+    "7.小红书/短视频爆款文案生成":
+        "擅长新媒体流量文案，根据产品、主题、场景生成吸睛标题+正文，风格贴合小红书、抖音短视频，情绪到位易出圈",
+    "8.批量数据分析+透视表制作指导":
+        "针对批量业务数据，给出数据分析思路、统计维度、数据分类方法，附带Excel数据透视表详细制作流程与字段搭配技巧",
+    "9.文档内容一键转PPT文案（可选风格）":
+        "把用户长篇文字内容，拆分梳理成标准PPT每页大纲+每页精简文案，支持简约商务/文艺清新/正式汇报三种风格，直接套用做PPT",
+    "10.表格数据分析+数据结论输出":
+        "根据用户表格内数据内容，进行理性数据分析，总结数据趋势、好坏表现、存在问题、优化建议，输出完整专业数据结论",
+    "11.专业短视频/宣传片视频脚本撰写":
+        "按照标准影视脚本格式撰写，包含镜头画面、台词文案、时长安排、背景音乐、场景动作，结构完整可直接拍摄使用",
+    "12.公众号爆款推文文章生成":
+        "根据用户需求撰写公众号优质原创推文，逻辑流畅、段落分明、标题吸睛、排版舒服，符合大众阅读习惯，自带传播感"
 }
 
-# 输入API密钥
-api_key = st.text_input("ark-4aaa9335-e5ba-4f88-ae37-b0a0ca396ca1-9cee4)", type="password")
-client = None
-if api_key:
-    client = OpenAI(api_key=api_key, base_url="https://ark.cn-beijing.volces.com/api/v3")
-    st.success("✅ 密钥连接成功，可正常使用")
+# 核心生成函数（带错误捕获）
+def run_office_tool(select_func, user_input):
+    if not user_input or len(user_input.strip()) == 0:
+        return "⚠️ 请填写对应的内容、素材、需求后再生成！"
 
-# 选择功能
-choose_func = st.selectbox("📌 选择使用功能", func_list)
-now_num = func_list.index(choose_func) + 1
+    system_prompt = FUNCTION_PROMPT[select_func]
+    try:
+        res = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_input}
+            ],
+            temperature=0.6,
+            max_tokens=2000
+        )
+        return res.choices[0].message.content
+    except Exception as e:
+        return f"❌ 调用失败！错误信息：{str(e)}"
 
-# 输入内容
-user_text = st.text_area("✍️ 输入你的需求/素材内容", height=180)
+# 界面
+with gr.Blocks(title="全能办公AI工具") as web_app:
+    gr.Markdown("""
+    # 🧰 12合一全能办公AI工具箱
+    手机流量可用 | 无需同WiFi | 一键生成
+    """)
 
-# 生成按钮
-if st.button("🚀 一键AI生成", type="primary"):
-    if not client:
-        st.warning("请先填写正确API密钥")
-    elif not user_text.strip():
-        st.warning("请输入需要处理的内容")
-    else:
-        with st.spinner("正在快速生成内容，请稍等..."):
-            full_prompt = prompt_map[now_num] + "\n用户内容：\n" + user_text
-            res = client.chat.completions.create(
-                model="Doubao-pro-4k",
-                messages=[{"role":"user","content":full_prompt}]
-            )
-            result_data = res.choices[0].message.content
-            st.session_state["ai_result"] = result_data
-
-# 展示结果+下载
-if "ai_result" in st.session_state:
-    st.divider()
-    st.subheader("📄 生成完成内容")
-    st.write(st.session_state["ai_result"])
-
-    # TXT下载
-    st.download_button(
-        label="💾 下载保存为TXT文档",
-        data=st.session_state["ai_result"],
-        file_name="AI办公结果.txt",
-        mime="text/plain"
+    func_choice = gr.Dropdown(
+        label="选择功能",
+        choices=list(FUNCTION_PROMPT.keys()),
+        value="1.职场日报/周报/月报自动生成"
     )
 
-    # Word下载
-    doc_file = Document()
-    doc_file.add_paragraph(st.session_state["ai_result"])
-    buf = io.BytesIO()
-    doc_file.save(buf)
-    buf.seek(0)
-    st.download_button(
-        label="📝 下载保存为Word文档",
-        data=buf,
-        file_name="AI办公结果.docx",
-        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    user_input_box = gr.Textbox(
+        label="输入内容",
+        lines=8,
+        placeholder="粘贴文字、需求、工作内容等"
     )
-    
+
+    result_show = gr.Textbox(
+        label="生成结果",
+        lines=15
+    )
+
+    submit_btn = gr.Button("🚀 一键生成", variant="primary")
+    submit_btn.click(run_office_tool, inputs=[func_choice, user_input_box], outputs=result_show)
+
+# 启动
+if __name__ == "__main__":
+    web_app.queue()
+    web_app.launch(server_name="0.0.0.0", server_port=7860, share=True, inbrowser=True)
