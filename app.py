@@ -1,16 +1,24 @@
 # -*- coding: utf-8 -*-
 import streamlit as st
+import pandas as pd
 from openai import OpenAI
+from PyPDF2 import PdfReader
+from docx import Document
+from pptx import Presentation
+from pptx.util import Inches, Pt
+from pptx.enum.text import PP_ALIGN
+import io
+import os
 
 # ===================== 【你的真实配置 100% 精准填写】 =====================
 API_KEY = "ark-4aaa9335-e5ba-4f88-ae37-b0a0ca396ca1-9cee4"
 BASE_URL = "https://ark.cn-beijing.volces.com/api/v3"
-MODEL_NAME = "ep-m-20260517183251-qv9zq"  # 你刚刚给的真实模型ID！
+MODEL_NAME = "ep-m-20260517183251-qv9zq"
 # ========================================================================
 
 client = OpenAI(api_key=API_KEY, base_url=BASE_URL)
 
-# 你要的 12 个办公功能（完整提示词）
+# 12 个办公功能（完整提示词）
 FUNCTIONS = {
     "1. 职场日报/周报/月报自动生成":
         "你是资深职场文员，根据用户提供工作内容，自动生成标准规范日报、周报、月报，分工作完成、现存问题、后续工作计划，排版工整适合直接上交",
@@ -37,7 +45,7 @@ FUNCTIONS = {
         "针对批量业务数据，给出数据分析思路、统计维度、数据分类方法，附带Excel数据透视表详细制作流程与字段搭配技巧",
 
     "9. 文档内容一键转PPT文案":
-        "把用户长篇文字内容，拆分梳理成标准PPT每页大纲+每页精简文案，支持简约商务/文艺清新/正式汇报三种风格，直接套用做PPT",
+        "把用户长篇文字内容，拆分梳理成标准PPT每页大纲+每页精简文案，支持简约商务/正式汇报风格，直接套用做PPT",
 
     "10. 表格数据分析+数据结论输出":
         "根据用户表格内数据内容，进行理性数据分析，总结数据趋势、好坏表现、存在问题、优化建议，输出完整专业数据结论",
@@ -50,45 +58,136 @@ FUNCTIONS = {
 }
 
 
-# AI 生成函数
-def generate_content(selected_func, user_input):
-    if not user_input or user_input.strip() == "":
-        return "⚠️ 请输入内容后再生成！"
+# ---------------------- 文件读取功能 ----------------------
+def read_pdf(file):
+    reader = PdfReader(file)
+    text = ""
+    for page in reader.pages:
+        text += page.extract_text() or ""
+    return text
+
+
+def read_excel(file):
+    df = pd.read_excel(file)
+    return df.to_string(), df
+
+
+def read_word(file):
+    doc = Document(file)
+    return "\n".join([para.text for para in doc.paragraphs])
+
+
+# ---------------------- 文件生成功能 ----------------------
+def generate_excel(content):
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df = pd.DataFrame({"AI生成结果": [content]})
+        df.to_excel(writer, index=False, sheet_name="结果")
+    output.seek(0)
+    return output
+
+
+def generate_word(content):
+    doc = Document()
+    doc.add_heading("AI办公生成结果", 0)
+    doc.add_paragraph(content)
+    output = io.BytesIO()
+    doc.save(output)
+    output.seek(0)
+    return output
+
+
+def generate_ppt(content):
+    prs = Presentation()
+    slide = prs.slides.add_slide(prs.slide_layouts[1])
+    title = slide.shapes.title
+    body = slide.placeholders[1]
+    title.text = "AI办公生成结果"
+    tf = body.text_frame
+    tf.text = content
+    for p in tf.paragraphs:
+        p.alignment = PP_ALIGN.LEFT
+        for run in p.runs:
+            run.font.size = Pt(14)
+    output = io.BytesIO()
+    prs.save(output)
+    output.seek(0)
+    return output
+
+
+# ---------------------- AI生成 ----------------------
+def generate_content(selected_func, user_input, file_content=""):
+    if not user_input and not file_content:
+        return "⚠️ 请输入内容或上传文件！", None, None, None
 
     prompt = FUNCTIONS[selected_func]
+    full_input = f"文件内容：\n{file_content}\n\n用户需求：{user_input}" if file_content else user_input
 
     try:
         response = client.chat.completions.create(
             model=MODEL_NAME,
-            messages=[
-                {"role": "system", "content": prompt},
-                {"role": "user", "content": user_input}
-            ],
-            temperature=0.6,
-            max_tokens=3000
+            messages=[{"role": "system", "content": prompt},
+                      {"role": "user", "content": full_input}],
+            temperature=0.6, max_tokens=4000
         )
-        return response.choices[0].message.content
+        result = response.choices[0].message.content
 
+        excel_file = generate_excel(result)
+        word_file = generate_word(result)
+        ppt_file = generate_ppt(result)
+
+        return result, excel_file, word_file, ppt_file
     except Exception as e:
-        return f"❌ 错误：{str(e)}"
+        return f"❌ 错误：{str(e)}", None, None, None
 
 
-# ===================== 网页界面 =====================
-st.set_page_config(page_title="12合1办公AI工具", layout="wide")
-st.title("🧰 12合1全能办公AI工具")
-st.markdown("### ✅ 手机/电脑通用 | 无需同一WiFi | 永久在线")
+# ---------------------- 界面 ----------------------
+st.set_page_config(page_title="全能办公AI工具箱", layout="wide")
+st.title("🧰 12合1全能办公AI工具｜文件上传 + 多格式导出")
+st.markdown("### ✅ 支持 PDF / Excel / Word 上传 | 导出 Excel + Word + PPT")
 
 # 功能选择
-selected = st.selectbox("请选择功能", list(FUNCTIONS.keys()))
+selected = st.selectbox("选择功能", list(FUNCTIONS.keys()))
 
-# 输入框
-content = st.text_area("请输入你的内容/需求", height=220)
+# 文件上传
+upload_file = st.file_uploader("上传文件（可选）", type=["pdf", "xlsx", "xls", "docx"])
+file_content = ""
 
-# 生成按钮
-if st.button("🚀 一键生成", type="primary"):
-    with st.spinner("正在生成..."):
-        result = generate_content(selected, content)
+if upload_file:
+    try:
+        if upload_file.name.endswith(".pdf"):
+            file_content = read_pdf(upload_file)
+            st.success("✅ PDF 读取成功")
+        elif upload_file.name.endswith((".xlsx", ".xls")):
+            file_content, _ = read_excel(upload_file)
+            st.success("✅ Excel 读取成功")
+        elif upload_file.name.endswith(".docx"):
+            file_content = read_word(upload_file)
+            st.success("✅ Word 读取成功")
+    except:
+        st.error("❌ 文件读取失败")
+
+# 输入需求
+user_input = st.text_area("输入你的需求（必选）", height=200)
+
+# 生成
+if st.button("🚀 一键生成 + 导出全部文件", type="primary"):
+    with st.spinner("AI 处理中..."):
+        result, excel_file, word_file, ppt_file = generate_content(selected, user_input, file_content)
         st.success("✅ 生成完成！")
         st.markdown("---")
-        st.markdown("## 📝 生成结果")
+        st.markdown("## 📝 结果预览")
         st.write(result)
+
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            if excel_file:
+                st.download_button("📥 下载 Excel", excel_file, "AI结果.xlsx", "application/vnd.ms-excel")
+        with col2:
+            if word_file:
+                st.download_button("📥 下载 Word", word_file, "AI结果.docx",
+                                   "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        with col3:
+            if ppt_file:
+                st.download_button("📥 下载 PPT", ppt_file, "AI结果.pptx",
+                                   "application/vnd.openxmlformats-officedocument.presentationml.presentation")
